@@ -2,7 +2,10 @@ use std::io;
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -111,14 +114,18 @@ struct TerminalGuard;
 impl TerminalGuard {
     fn enter() -> Result<Self> {
         enable_raw_mode()?;
-        execute!(io::stdout(), EnterAlternateScreen)?;
+        if let Err(error) = execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture) {
+            let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
+            let _ = disable_raw_mode();
+            return Err(error.into());
+        }
         Ok(Self)
     }
 }
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
-        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
         let _ = disable_raw_mode();
     }
 }
@@ -157,6 +164,11 @@ pub fn run(book: Book, state: State, mut pos: Position, encoding: Option<String>
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
                     if reader.on_key(key)? {
                         break;
+                    }
+                }
+                Event::Mouse(mouse) if matches!(&reader.view, View::Reading) => {
+                    if let Some(delta) = wheel_direction(mouse.kind) {
+                        reader.page_step(delta)?;
                     }
                 }
                 Event::Resize(width, height) => reader.resize(width, height)?,
@@ -648,6 +660,14 @@ fn reading_direction(key: KeyCode) -> Option<isize> {
     }
 }
 
+fn wheel_direction(kind: MouseEventKind) -> Option<isize> {
+    match kind {
+        MouseEventKind::ScrollUp => Some(-1),
+        MouseEventKind::ScrollDown => Some(1),
+        _ => None,
+    }
+}
+
 impl Listing {
     fn visible(&self) -> Vec<(usize, &Entry)> {
         self.entries
@@ -689,5 +709,12 @@ mod tests {
         assert_eq!(reading_direction(KeyCode::Right), Some(1));
         assert_eq!(reading_direction(KeyCode::Left), Some(-1));
         assert_eq!(reading_direction(KeyCode::Up), None);
+    }
+
+    #[test]
+    fn wheel_direction_matches_page_navigation() {
+        assert_eq!(wheel_direction(MouseEventKind::ScrollUp), Some(-1));
+        assert_eq!(wheel_direction(MouseEventKind::ScrollDown), Some(1));
+        assert_eq!(wheel_direction(MouseEventKind::Moved), None);
     }
 }

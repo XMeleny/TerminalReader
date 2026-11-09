@@ -21,6 +21,7 @@ cargo build --release
 | --- | --- |
 | `Left` / `k` | 前一页 |
 | `Right` / `j` | 后一页 |
+| 鼠标滚轮向上 / 向下 | 前一页 / 后一页 |
 | `Ctrl+Left` / `Ctrl+k` | 上一章 |
 | `Ctrl+Right` / `Ctrl+j` | 下一章 |
 | `/toc`、`/toc 12` | 目录或跳章 |
