@@ -101,4 +101,10 @@ mod tests {
         let new = Layout::new(text, 4, 1);
         assert_eq!(new.page_for_offset(offset), 1);
     }
+
+    #[test]
+    fn end_offset_selects_last_page() {
+        let layout = Layout::new("abcdefghij", 3, 1);
+        assert_eq!(layout.page_for_offset(usize::MAX), layout.page_count() - 1);
+    }
 }

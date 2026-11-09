@@ -104,7 +104,6 @@ struct Reader {
     layout: Layout,
     view: View,
     notice: String,
-    boundary: Option<isize>,
 }
 
 struct TerminalGuard;
@@ -149,7 +148,6 @@ pub fn run(book: Book, state: State, mut pos: Position, encoding: Option<String>
         layout,
         view: View::Reading,
         notice: String::new(),
-        boundary: None,
     };
     reader.persist_page()?;
     loop {
@@ -348,13 +346,15 @@ impl Reader {
                 chapter: self.pos.chapter,
                 offset: self.layout.page_offset(next as usize),
             })?;
+        } else if delta > 0 {
+            self.chapter_step(1)?;
+        } else if self.pos.chapter > 0 {
+            self.go(Position {
+                chapter: self.pos.chapter - 1,
+                offset: usize::MAX,
+            })?;
         } else {
-            if self.boundary == Some(delta) {
-                self.chapter_step(delta)?;
-            } else {
-                self.boundary = Some(delta);
-                self.notice = "已到章节边界，再按一次进入相邻章节".into();
-            }
+            self.notice = "已到书籍边界".into();
         }
         Ok(())
     }
@@ -396,7 +396,6 @@ impl Reader {
         if let Some(layout) = new_layout {
             self.layout = layout;
         }
-        self.boundary = None;
         self.notice.clear();
         Ok(())
     }
